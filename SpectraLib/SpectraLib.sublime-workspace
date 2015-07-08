@@ -1,0 +1,720 @@
+{
+	"auto_complete":
+	{
+		"selected_items":
+		[
+			[
+				"page",
+				"pageGen"
+			],
+			[
+				"varis",
+				"varis"
+			],
+			[
+				"fig",
+				"figsize"
+			],
+			[
+				"conve",
+				"conversionGainFrame"
+			],
+			[
+				"img",
+				"img"
+			],
+			[
+				"x",
+				"xlabel"
+			],
+			[
+				"q",
+				"q4"
+			]
+		]
+	},
+	"buffers":
+	[
+		{
+			"file": "svariance.py",
+			"settings":
+			{
+				"buffer_size": 1935,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "detector.py",
+			"settings":
+			{
+				"buffer_size": 9895,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "/home/lschmidt/Dropbox/pyprogs/amdep/amdep.py",
+			"settings":
+			{
+				"buffer_size": 39705,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "/home/lschmidt/repos/mroi_sw/SpotTracker/spottracker.py",
+			"settings":
+			{
+				"buffer_size": 12361,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "/run/user/1000/gvfs/smb-share:server=10.10.0.16,share=storage_files/lschmidt/Software/xenomai_install_notes.txt",
+			"settings":
+			{
+				"buffer_size": 3597,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "/run/user/1000/gvfs/smb-share:server=10.10.0.16,share=storage_files/lschmidt/Software/xenomai_update.txt",
+			"settings":
+			{
+				"buffer_size": 1080,
+				"line_ending": "Windows"
+			}
+		},
+		{
+			"file": "/run/user/1000/gvfs/sftp:host=10.10.0.98/home/pi/repos/mroi/Sensors/Lakeshore336.py",
+			"settings":
+			{
+				"buffer_size": 0,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"contents": "",
+			"file": "/run/user/1000/gvfs/sftp:host=10.10.0.98/home/pi/repos/mroi/Sensors/ls218.py",
+			"file_size": -1,
+			"file_write_time": -1,
+			"settings":
+			{
+				"buffer_size": 0,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"contents": "import serial\nimport time\nfrom time import gmtime, strftime\nimport sys\n\n\nclass XGS600Driver():\n    def __init__(self, port='/dev/ttyUSB2'):\n        self.f = serial.Serial(port)\n\n    def xgs_comm(self, command):\n        comm = \"#00\" + command + \"\\r\"\n\n        self.f.write(comm)\n        time.sleep(0.25)\n        number_of_bytes = self.f.inWaiting()\n        complete_string = self.f.read(number_of_bytes)\n        complete_string = complete_string.replace('>', '').replace('\\r', '')\n        return(complete_string)\n\n    def read_all_pressures(self):\n        pressure_string = self.xgs_comm(\"0F\")\n        #print pressure_string\n        if len(pressure_string) > 0:\n            temp_pressure = pressure_string.replace(' ', '').split(',')\n            pressures = []\n            for press in temp_pressure:\n                if press == 'OPEN':\n                    pressures.append(-1)\n                else:\n                    try:\n                        pressures.append((float)(press))\n                    except:\n                        pressures.append(-2)\n        else:\n            pressures = [-3]\n        return(pressures)\n\n\n    def list_all_gauges(self):\n        gauge_string = self.xgs_comm(\"01\")\n        gauges = \"\"\n        for i in range(0,len(gauge_string),2):\n            gauge = gauge_string[i:i+2]\n            if gauge == \"10\":\n                gauges = gauges + str(i/2) + \": Hot Filament Gauge\\n\"\n            if gauge == \"FE\":\n                gauges = gauges + str(i/2) + \": Empty Slot\\n\"\n            if gauge == \"40\":\n                gauges = gauges + str(i/2) + \": Convection Board\\n\"\n            if gauge == \"3A\":\n                gauges = gauges + str(i/2) + \": Inverted Magnetron Board\\n\"\n        return(gauges)\n\n    def read_pressure(self, id):\n        pressure = self.xgs_comm('02' + id)\n        try:\n            val = float(pressure)\n        except ValueError:\n            val = -1.0\n        return(val)\n\n    def filament_lit(self, id):\n        filament = self.xgs_comm('34' + id) \n        return(int(filament))\n\n    def emission_status(self, id):\n        status = self.xgs_comm('32' + id)\n        emission = status == '01'\n        return emission\n\n    def set_smission_off(self, id):\n        self.xgs_comm('30' + id)\n        time.sleep(0.1)\n        return self.emission_status(id)\n\n    def set_emission_on(self, id, filament):\n        if filament == 1:\n            command = '31'\n        if filament == 2:\n            command = '33'\n        self.xgs_comm(command + id)\n        return self.emission_status(id)\n\n    def read_software_version(self):\n        gauge_string = self.xgs_comm(\"05\")\n        return(gauge_string)\n\n\n    def read_pressure_unit(self):\n        gauge_string = self.xgs_comm(\"13\")\n        unit = gauge_string.replace(' ','')\n        if unit == \"00\":\n            unit = \"Torr\"\n        if unit == \"01\":\n            unit = \"mBar\"\n        if unit == \"02\":\n            unit = \"Pascal\"\n        return(unit)\n\ndef open_log():\n	\"\"\"set up file header for log file\"\"\"\n	fname = \"XGS600Log_\" + strftime(\"%Y%m%d %H:%M:%S\", gmtime()) + \".csv\"\n	with open(fname, \"a\") as text_file:\n		text_file.write('Date Time,Epoch,Pressure IMG1,Pressure CNV1\\n')\n\n	print \"Starting Log: \" + fname\n	return fname\n	\n	\ndef write_log(logname, msg):\n	with open(logname, \"a\") as text_file:\n		text_file.write(msg + '\\n')\n\nif __name__ == '__main__':\n    xgs = XGS600Driver()\n    pumplog = open_log()\n    unit = xgs.read_pressure_unit()\n    while 1:\n		try:\n			img = str(xgs.read_pressure('UIMG1'))\n			cnv = str(xgs.read_pressure('UCNV1'))\n			\n			sys.stdout.write('\\r')\n			sys.stdout.write(' '.ljust(79))\n			sys.stdout.write('\\r')\n			sys.stdout.write(img + ' ' + unit + ' ' + cnv + ' ' + unit)\n			sys.stdout.flush()\n			\n			result = strftime(\"%Y%m%d %H:%M:%S\", gmtime()) + ',' + str(time.time()) + ',' + img + ',' + cnv\n			write_log(pumplog, result)\n			\n			time.sleep(5)\n			\n		except KeyboardInterrupt:\n			print \"\\n Stopping Pressure Monitoring.\"\n			break\n",
+			"file": "/run/user/1000/gvfs/sftp:host=10.10.0.98/home/pi/repos/mroi/Sensors/xgs600.py",
+			"file_size": 3945,
+			"file_write_time": 1423783530000000,
+			"settings":
+			{
+				"buffer_size": 3945,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "/home/lschmidt/Documents/updateTPS.py",
+			"settings":
+			{
+				"buffer_size": 738,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "/home/lschmidt/Dropbox/pyprogs/emailalert.py",
+			"settings":
+			{
+				"buffer_size": 814,
+				"line_ending": "Unix",
+				"name": "from email.MIMEMultipart import MIMEMultipart"
+			}
+		},
+		{
+			"file": "/home/lschmidt/Documents/TPSCompactLog_Fri Sep 12 16_34_53 2014.csv",
+			"settings":
+			{
+				"buffer_size": 205680,
+				"line_ending": "Unix"
+			}
+		},
+		{
+			"file": "/home/lschmidt/Dropbox/words/The Long Problem/TheLongProblem.html",
+			"settings":
+			{
+				"buffer_size": 7458,
+				"line_ending": "Unix"
+			}
+		}
+	],
+	"build_system": "",
+	"command_palette":
+	{
+		"height": 392.0,
+		"selected_items":
+		[
+			[
+				"Package Control: ",
+				"Package Control: Discover Packages"
+			],
+			[
+				"side",
+				"View: Toggle Side Bar"
+			],
+			[
+				"install",
+				"Package Control: Install Package"
+			],
+			[
+				"mark",
+				"Set Syntax: Markdown"
+			],
+			[
+				"syntax:ja",
+				"Set Syntax: JavaScript"
+			]
+		],
+		"width": 449.0
+	},
+	"console":
+	{
+		"height": 139.0
+	},
+	"distraction_free":
+	{
+		"menu_visible": true,
+		"show_minimap": false,
+		"show_open_files": false,
+		"show_tabs": false,
+		"side_bar_visible": false,
+		"status_bar_visible": false
+	},
+	"file_history":
+	[
+		"/home/lschmidt/Dropbox/words/2014-jai-amasing/jai-paper.tex",
+		"/home/lschmidt/.config/sublime-text-2/Packages/User/Preferences.sublime-settings",
+		"/mnt/external/LS_Files/reduction/2012-06-10_HD171779_annulus_680/ipython_memory_usage.py",
+		"/run/user/1000/gvfs/sftp:host=10.10.0.98/home/pi/repos/mroi/Sensors/update.py",
+		"/home/lschmidt/Documents/cambridge_dewar/TPSCompactLog_Fri Sep 12 16_34_53 2014.csv",
+		"/home/lschmidt/Documents/XGS600Log_20150212 23:40:21.csv",
+		"/home/lschmidt/Dropbox/words/2014-jai-nessi/nessi-jai.tex",
+		"/home/lschmidt/Dropbox/words/The Long Problem/style.css",
+		"/home/lschmidt/Dropbox/words/stories/My Kindle Book/MCTripJournal.html",
+		"/home/lschmidt/Dropbox/NESSI-dropbox/NESSI User Manual/nessi_user_manual.tex",
+		"/home/lschmidt/lines.html",
+		"/home/lschmidt/Dropbox/words/2014-jai-amasing/ws-jai_bib.tex",
+		"/home/lschmidt/Dropbox/words/2014-jai-amasing/ws-jai.tex",
+		"/home/lschmidt/Dropbox/pyprogs/amdep/amdep.py",
+		"/home/lschmidt/repos/mroi_sw/.git/config",
+		"/home/lschmidt/Downloads/test.js",
+		"/home/lschmidt/.config/sublime-text-2/Packages/Default/Preferences.sublime-settings"
+	],
+	"find":
+	{
+		"height": 35.0
+	},
+	"find_in_files":
+	{
+		"height": 0.0,
+		"where_history":
+		[
+		]
+	},
+	"find_state":
+	{
+		"case_sensitive": false,
+		"find_history":
+		[
+			"]",
+			"Thoughts",
+			"t\",",
+			", ",
+			",",
+			"pl.",
+			"pl",
+			"hdu",
+			"/td>",
+			"      \n",
+			"0",
+			">{{.",
+			"script",
+			"fig3:stru",
+			"sys",
+			"files",
+			"\n    ",
+			"=",
+			"=\n",
+			"q1",
+			"pass",
+			"neworder",
+			"pl",
+			"\n",
+			"this",
+			"xlabel",
+			"DSET",
+			"framename",
+			"centroid"
+		],
+		"highlight": true,
+		"in_selection": false,
+		"preserve_case": false,
+		"regex": false,
+		"replace_history":
+		[
+		],
+		"reverse": false,
+		"show_context": true,
+		"use_buffer2": true,
+		"whole_word": false,
+		"wrap": true
+	},
+	"groups":
+	[
+		{
+			"selected": 5,
+			"sheets":
+			[
+				{
+					"buffer": 0,
+					"file": "svariance.py",
+					"settings":
+					{
+						"buffer_size": 1935,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								944,
+								944
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Python/Python.tmLanguage",
+							"translate_tabs_to_spaces": false
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 1,
+					"file": "detector.py",
+					"settings":
+					{
+						"buffer_size": 9895,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								6292,
+								6292
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Python/Python.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 4488.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 2,
+					"file": "/home/lschmidt/Dropbox/pyprogs/amdep/amdep.py",
+					"settings":
+					{
+						"buffer_size": 39705,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								14674,
+								14674
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Python/Python.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 7438.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 3,
+					"file": "/home/lschmidt/repos/mroi_sw/SpotTracker/spottracker.py",
+					"settings":
+					{
+						"buffer_size": 12361,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								12104,
+								12104
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Python/Python.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 5719.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 4,
+					"file": "/run/user/1000/gvfs/smb-share:server=10.10.0.16,share=storage_files/lschmidt/Software/xenomai_install_notes.txt",
+					"settings":
+					{
+						"buffer_size": 3597,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								0,
+								0
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Text/Plain text.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 102.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 5,
+					"file": "/run/user/1000/gvfs/smb-share:server=10.10.0.16,share=storage_files/lschmidt/Software/xenomai_update.txt",
+					"settings":
+					{
+						"buffer_size": 1080,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								348,
+								348
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Text/Plain text.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 6,
+					"file": "/run/user/1000/gvfs/sftp:host=10.10.0.98/home/pi/repos/mroi/Sensors/Lakeshore336.py",
+					"settings":
+					{
+						"buffer_size": 0,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								0,
+								0
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Python/Python.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 7,
+					"file": "/run/user/1000/gvfs/sftp:host=10.10.0.98/home/pi/repos/mroi/Sensors/ls218.py",
+					"settings":
+					{
+						"buffer_size": 0,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								0,
+								0
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Python/Python.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 8,
+					"file": "/run/user/1000/gvfs/sftp:host=10.10.0.98/home/pi/repos/mroi/Sensors/xgs600.py",
+					"settings":
+					{
+						"buffer_size": 3945,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								3341,
+								3341
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Python/Python.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 9,
+					"file": "/home/lschmidt/Documents/updateTPS.py",
+					"settings":
+					{
+						"buffer_size": 738,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								209,
+								209
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Python/Python.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 10,
+					"file": "/home/lschmidt/Dropbox/pyprogs/emailalert.py",
+					"settings":
+					{
+						"buffer_size": 814,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								30,
+								30
+							]
+						],
+						"settings":
+						{
+							"auto_name": "from email.MIMEMultipart import MIMEMultipart",
+							"syntax": "Packages/Python/Python.tmLanguage",
+							"tab_size": 4,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 11,
+					"file": "/home/lschmidt/Documents/TPSCompactLog_Fri Sep 12 16_34_53 2014.csv",
+					"settings":
+					{
+						"buffer_size": 205680,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								0,
+								0
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/Text/Plain text.tmLanguage"
+						},
+						"translation.x": 0.0,
+						"translation.y": 0.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				},
+				{
+					"buffer": 12,
+					"file": "/home/lschmidt/Dropbox/words/The Long Problem/TheLongProblem.html",
+					"settings":
+					{
+						"buffer_size": 7458,
+						"regions":
+						{
+						},
+						"selection":
+						[
+							[
+								2102,
+								2102
+							]
+						],
+						"settings":
+						{
+							"syntax": "Packages/HTML/HTML.tmLanguage",
+							"tab_size": 2,
+							"translate_tabs_to_spaces": true
+						},
+						"translation.x": 0.0,
+						"translation.y": 408.0,
+						"zoom_level": 1.0
+					},
+					"type": "text"
+				}
+			]
+		}
+	],
+	"incremental_find":
+	{
+		"height": 34.0
+	},
+	"input":
+	{
+		"height": 0.0
+	},
+	"layout":
+	{
+		"cells":
+		[
+			[
+				0,
+				0,
+				1,
+				1
+			]
+		],
+		"cols":
+		[
+			0.0,
+			1.0
+		],
+		"rows":
+		[
+			0.0,
+			1.0
+		]
+	},
+	"menu_visible": true,
+	"output.exec":
+	{
+		"height": 112.0
+	},
+	"replace":
+	{
+		"height": 0.0
+	},
+	"save_all_on_build": true,
+	"select_file":
+	{
+		"height": 0.0,
+		"selected_items":
+		[
+			[
+				"d",
+				"detector.py"
+			],
+			[
+				"s",
+				"svariance.py"
+			],
+			[
+				"de",
+				"detector.py"
+			],
+			[
+				"sva",
+				"svariance.py"
+			],
+			[
+				"am",
+				"/home/lschmidt/Dropbox/pyprogs/amdep/amdep.py"
+			],
+			[
+				"this",
+				"this is new"
+			]
+		],
+		"width": 0.0
+	},
+	"select_project":
+	{
+		"height": 500.0,
+		"selected_items":
+		[
+		],
+		"width": 380.0
+	},
+	"show_minimap": true,
+	"show_open_files": true,
+	"show_tabs": true,
+	"side_bar_visible": true,
+	"side_bar_width": 150.0,
+	"status_bar_visible": true
+}
